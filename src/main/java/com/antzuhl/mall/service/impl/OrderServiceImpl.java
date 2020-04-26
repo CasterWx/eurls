@@ -179,7 +179,7 @@ public class OrderServiceImpl implements OrderService {
                 ZxingUtils.getQRCodeImge(response.getQrCode(), 256, filePath);
 
 
-                resultMap.put("qrUrl", "http://localhost:88/images/"+qrFile);
+                resultMap.put("qrUrl", PropertiesUtil.getProperty("pay.images.host")+qrFile);
 //                resultMap.put("filePath", filePath);
                 log.info("filePath:" + filePath);
                 //                ZxingUtils.getQRCodeImge(response.getQrCode(), 256, filePath);
