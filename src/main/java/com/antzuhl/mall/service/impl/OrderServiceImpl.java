@@ -20,6 +20,7 @@ import com.antzuhl.mall.dao.OrderMapper;
 import com.antzuhl.mall.pojo.Order;
 import com.antzuhl.mall.pojo.OrderItem;
 import com.antzuhl.mall.service.OrderService;
+import com.antzuhl.mall.util.PropertiesUtil;
 import com.google.common.collect.Maps;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
@@ -88,6 +89,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public ServiceResponse pay(Long orderNo, Integer userId, String path) {
+        path = PropertiesUtil.getProperty("pay.path");
         log.info("OrderService pay: {}, {}, {}", orderNo, userId, path);
         Map<String, String> resultMap = Maps.newHashMap();
         Order order = orderMapper.selectByUserIdAndOrdNo(userId, orderNo);
@@ -169,16 +171,16 @@ public class OrderServiceImpl implements OrderService {
 
 
                 // 需要修改为运行机器上的路径
-                String filePath = String.format(path+"\\qr-%s.png",
+                String filePath = String.format(path+"/qr-%s.png",
                         response.getOutTradeNo());
                 String qrFile = String.format("qr-%s.png", response.getOutTradeNo());
-
+//                System.out.println("filePath:"+filePath);
+//                System.out.println("qrFile:"+qrFile);
                 ZxingUtils.getQRCodeImge(response.getQrCode(), 256, filePath);
 
-                File targetFile = new File(path, qrFile);
 
-                resultMap.put("qrUrl", qrFile);
-                resultMap.put("filePath", filePath);
+                resultMap.put("qrUrl", "http://localhost:88/images/"+qrFile);
+//                resultMap.put("filePath", filePath);
                 log.info("filePath:" + filePath);
                 //                ZxingUtils.getQRCodeImge(response.getQrCode(), 256, filePath);
 
