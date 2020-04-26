@@ -13,16 +13,21 @@ import com.alipay.demo.trade.service.impl.AlipayMonitorServiceImpl;
 import com.alipay.demo.trade.service.impl.AlipayTradeServiceImpl;
 import com.alipay.demo.trade.service.impl.AlipayTradeWithHBServiceImpl;
 import com.alipay.demo.trade.utils.ZxingUtils;
+import com.antzuhl.mall.common.Const;
 import com.antzuhl.mall.common.HResult;
 import com.antzuhl.mall.common.ServiceResponse;
 import com.antzuhl.mall.dao.OrderItemMapper;
 import com.antzuhl.mall.dao.OrderMapper;
+import com.antzuhl.mall.dao.PayInfoMapper;
 import com.antzuhl.mall.pojo.Order;
 import com.antzuhl.mall.pojo.OrderItem;
+import com.antzuhl.mall.pojo.PayInfo;
 import com.antzuhl.mall.service.OrderService;
+import com.antzuhl.mall.util.DateTimeUtil;
 import com.antzuhl.mall.util.PropertiesUtil;
 import com.google.common.collect.Maps;
 import org.apache.commons.lang.StringUtils;
+import org.joda.time.DateTimeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +46,9 @@ public class OrderServiceImpl implements OrderService {
 
     @Autowired
     OrderItemMapper orderItemMapper;
+
+    @Autowired
+    PayInfoMapper payInfoMapper;
 
     private static Logger log = LoggerFactory.getLogger(OrderServiceImpl.class);
 
@@ -152,7 +160,7 @@ public class OrderServiceImpl implements OrderService {
                 .setUndiscountableAmount(undiscountableAmount).setSellerId(sellerId).setBody(body)
                 .setOperatorId(operatorId).setStoreId(storeId).setExtendParams(extendParams)
                 .setTimeoutExpress(timeoutExpress)
-                //                .setNotifyUrl("http://www.test-notify-url.com")//支付宝服务器主动通知商户服务器里指定的页面http路径,根据需要设置
+                .setNotifyUrl(PropertiesUtil.getProperty("pay.callback.host"))//支付宝服务器主动通知商户服务器里指定的页面http路径,根据需要设置
                 .setGoodsDetailList(goodsDetailList);
 
         AlipayF2FPrecreateResult result = tradeService.tradePrecreate(builder);
@@ -169,8 +177,6 @@ public class OrderServiceImpl implements OrderService {
                     folder.mkdir();
                 }
 
-
-                // 需要修改为运行机器上的路径
                 String filePath = String.format(path+"/qr-%s.png",
                         response.getOutTradeNo());
                 String qrFile = String.format("qr-%s.png", response.getOutTradeNo());
@@ -183,7 +189,6 @@ public class OrderServiceImpl implements OrderService {
 //                resultMap.put("filePath", filePath);
                 log.info("filePath:" + filePath);
                 //                ZxingUtils.getQRCodeImge(response.getQrCode(), 256, filePath);
-
                 return ServiceResponse.createSuccessResponse(HResult.R_OK.getMsg(), resultMap);
             case FAILED:
                 log.error("支付宝预下单失败!!!");
@@ -191,10 +196,48 @@ public class OrderServiceImpl implements OrderService {
             case UNKNOWN:
                 log.error("系统异常，预下单状态未知!!!");
                 return ServiceResponse.createErrorResponse("系统异常，预下单状态未知");
-
             default:
                 log.error("不支持的交易状态，交易返回异常!!!");
                 return ServiceResponse.createErrorResponse("不支持的交易状态，交易返回异常");
         }
+    }
+
+    @Override
+    public ServiceResponse payCallback(Map<String,String> params) {
+        Long orderNo = Long.parseLong(params.get("out_trade_no"));
+        String tradeNo = params.get("trade_no");
+        String tradeStatus = params.get("trade_status");
+        Order order = orderMapper.selectByOrderNo(orderNo);
+        if (order==null) {
+            return ServiceResponse.createErrorResponse("非本系统回调订单");
+        }
+        if (order.getStatus() >= Const.OrderStatusEnum.PAID.getCode()) {
+            return ServiceResponse.createSuccessResponse("支付宝重复调用");
+        }
+        if (Const.AlipayCallback.TRADE_STATUS_TRADE_SUCCESS.equals(tradeStatus)) {
+            order.setPaymentTime(DateTimeUtil.strToDate(params.get("gms_payment")));
+            order.setStatus(Const.OrderStatusEnum.PAID.getCode());
+            orderMapper.updateByPrimaryKeySelective(order);
+        }
+        PayInfo payInfo = new PayInfo();
+        payInfo.setUserId(order.getUserId());
+        payInfo.setOrderNo(order.getOrderNo());
+        payInfo.setPayPlatform(Const.PayPlatformEnum.ALIPAY.getCode());
+        payInfo.setPlatformNumber(tradeNo);
+        payInfo.setPlatformStatus(tradeStatus);
+        payInfoMapper.insert(payInfo);
+        return ServiceResponse.createSuccessResponse();
+    }
+
+    @Override
+    public ServiceResponse<Boolean> queryOrderStatus(Integer userId, Long orderNo) {
+        Order order = orderMapper.selectByUserIdAndOrdNo(userId, orderNo);
+        if (order == null) {
+            return ServiceResponse.createErrorResponse("用户没有该订单");
+        }
+        if (order.getStatus() >= Const.OrderStatusEnum.PAID.getCode()) {
+            return ServiceResponse.createSuccessResponse(true);
+        }
+        return ServiceResponse.createErrorResponse(false);
     }
 }

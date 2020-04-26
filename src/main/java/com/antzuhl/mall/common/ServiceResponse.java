@@ -2,6 +2,8 @@ package com.antzuhl.mall.common;
 
 import org.codehaus.jackson.map.annotate.JsonSerialize;
 
+import javax.xml.crypto.Data;
+
 @JsonSerialize(include = JsonSerialize.Inclusion.NON_NULL)
 public class ServiceResponse<T> {
     private int code;
@@ -56,6 +58,10 @@ public class ServiceResponse<T> {
 
     public static <T> ServiceResponse<T> createErrorResponse(String msg) {
         return new ServiceResponse<>(HResult.R_ERROR.getCode(), msg);
+    }
+
+    public static <T> ServiceResponse<T> createErrorResponse(T data) {
+        return new ServiceResponse<>(HResult.R_ERROR.getCode(), HResult.R_ERROR.getMsg(), data);
     }
 
     public Boolean isSuccess() {
